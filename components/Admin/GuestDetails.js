@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, Alert, Button, TextInput } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import { View, Text, StyleSheet, ActivityIndicator, Alert, TouchableOpacity } from 'react-native';
 import { useRoute } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { authApis, endpoints } from "../../configs/Apis";
@@ -10,22 +9,6 @@ const GuestDetails = () => {
   const { guestId } = route.params;
   const [guest, setGuest] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [vehicleType, setVehicleType] = useState('motorbike');
-  const [licensePlate, setLicensePlate] = useState('');
-  const [color, setColor] = useState('');
-
-const generateNextCardNumber = (existingCards) => {
-  const usedNumbers = existingCards
-    .map(card => card.card_number ? parseInt(card.card_number.replace('N', '')) : NaN)
-    .filter(num => !isNaN(num));
-
-  if (usedNumbers.length === 0) return 'N001';
-
-  const maxUsed = Math.max(...usedNumbers);
-  const nextCardNumber = maxUsed + 1;
-
-  return `N${nextCardNumber.toString().padStart(3, '0')}`;
-};
 
   const loadGuestDetails = async () => {
     try {
@@ -40,45 +23,23 @@ const generateNextCardNumber = (existingCards) => {
     }
   };
 
-  const issueParkingCard = async () => {
-    if (!licensePlate.trim()) {
-        Alert.alert('Lỗi', 'Vui lòng nhập biển số xe.');
-        return;
-    }
-
+  const approveGuest = async () => {
     try {
-        const token = await AsyncStorage.getItem('token');
+      const token = await AsyncStorage.getItem('token');
+      const res = await authApis(token).patch(
+        `${endpoints.visitors}/${guestId}/`,
+        { is_approved: 1 }
+      );
 
-        const resCards = await authApis(token).get(endpoints.parking_cards);
-        const nextCardNumber = generateNextCardNumber(resCards.data);
-
-        if (!nextCardNumber) {
-        Alert.alert('Lỗi', 'Đã hết mã thẻ khả dụng.');
-        return;
-        }
-
-        const formData = new FormData();
-        formData.append('card_number', nextCardNumber);
-        formData.append('vehicle_type', vehicleType);
-        formData.append('license_plate', licensePlate);
-        if (color.trim()) formData.append('color', color.trim());
-        formData.append('visitor', guestId);
-
-        const res = await authApis(token).post(endpoints.parking_cards, formData, {
-        headers: {
-            'Content-Type': 'multipart/form-data',
-        },
-        });
-
-        Alert.alert('Thành công', `Đã cấp thẻ xe với số: ${nextCardNumber}`);
-        setGuest(prev => ({ ...prev, parking_card: res.data }));
+      if (res.status === 200) {
+        Alert.alert('Thành công', 'Khách đã được phê duyệt.');
+        setGuest(prev => ({ ...prev, is_approved: 1 }));
+      } else {
+        Alert.alert('Lỗi', 'Không thể phê duyệt khách.');
+      }
     } catch (error) {
-        console.error('Lỗi khi cấp thẻ xe:', error);
-        if (error.response) {
-
-        console.error('Lỗi từ server:', error.response.data);
-        }
-        Alert.alert('Lỗi', 'Không thể cấp thẻ xe.');
+      console.error('Lỗi khi phê duyệt khách:', error);
+      Alert.alert('Lỗi', 'Không thể phê duyệt khách.');
     }
   };
 
@@ -87,11 +48,7 @@ const generateNextCardNumber = (existingCards) => {
   }, [guestId]);
 
   if (loading) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color="#4a90e2" />
-      </View>
-    );
+    return <Text style={{ padding: 20 }}>Đang tải dữ liệu...</Text>;
   }
 
   if (!guest) {
@@ -115,6 +72,14 @@ const generateNextCardNumber = (existingCards) => {
         <Text style={styles.label}>Số CMND: <Text style={styles.value}>{guest.identity_card}</Text></Text>
         <Text style={styles.label}>Số điện thoại: <Text style={styles.value}>{guest.phone}</Text></Text>
 
+        {guest.is_approved ? (
+          <Text style={styles.label}>Khách đã được phê duyệt</Text>
+        ) : (
+          <TouchableOpacity style={styles.approveButton} onPress={approveGuest}>
+            <Text style={styles.approveButtonText}>Phê duyệt</Text>
+          </TouchableOpacity>
+        )}
+
         {guest.parking_card ? (
           <View style={styles.parkingCard}>
             <Text style={styles.label}>Thẻ xe:</Text>
@@ -122,31 +87,7 @@ const generateNextCardNumber = (existingCards) => {
             <Text style={styles.value}>Khách: {guest.parking_card.visitor}</Text>
           </View>
         ) : (
-          <View style={styles.parkingCard}>
-            <Text style={styles.label}>Loại xe:</Text>
-            <Picker selectedValue={vehicleType} onValueChange={setVehicleType}>
-              <Picker.Item label="Xe máy" value="motorbike" />
-              <Picker.Item label="Ô tô" value="car" />
-              <Picker.Item label="Xe đạp" value="bike" />
-              <Picker.Item label="Khác" value="Other" />
-            </Picker>
-
-            <TextInput
-              placeholder="Biển số xe"
-              value={licensePlate}
-              onChangeText={setLicensePlate}
-              style={styles.input}
-            />
-
-            <TextInput
-              placeholder="Màu xe (tuỳ chọn)"
-              value={color}
-              onChangeText={setColor}
-              style={styles.input}
-            />
-
-            <Button title="Cấp thẻ xe" onPress={issueParkingCard} />
-          </View>
+          <Text>Khách chưa có thẻ xe.</Text>
         )}
       </View>
     </View>
@@ -194,12 +135,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f1f1',
     borderRadius: 10,
   },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 6,
-    padding: 8,
-    marginBottom: 10,
+  approveButton: {
+    backgroundColor: '#4a90e2', // Màu nền của nút
+    paddingVertical: 12, // Khoảng cách theo chiều dọc
+    paddingHorizontal: 20, // Khoảng cách theo chiều ngang
+    borderRadius: 8, // Bo góc nút
+    alignItems: 'center', // Căn giữa chữ trong nút
+    marginTop: 20, // Khoảng cách với các phần tử trên
+    elevation: 3, // Bóng đổ nhẹ
+  },
+  approveButtonText: {
+    color: '#fff', // Màu chữ
+    fontSize: 16, // Kích thước chữ
+    fontWeight: 'bold', // Đậm chữ
   },
 });
 

@@ -1,11 +1,14 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';  // Đảm bảo đã import StyleSheet
+import { useContext, useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Alert, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { MyUserContext } from "../../configs/Contexts";
-import Apis, { endpoints } from "../../configs/Apis";
+import { authApis, endpoints } from "../../configs/Apis";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const Home = ({ navigation }) => {
   const user = useContext(MyUserContext);
+  const [apartments, setApartments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const residentMenu = [
     { title: "Thanh toán phí", icon: "card", screen: "MyInvoices" },
@@ -13,17 +16,40 @@ const Home = ({ navigation }) => {
     { title: "Gửi phản ánh", icon: "alert-circle", screen: "MyComplaints" },
     { title: "Tham gia khảo sát", icon: "stats-chart", screen: "MySurveys" },
     { title: "Đăng ký khách", icon: "person-add", screen: "MyVisitors" },
-    { title: "Lịch sử hóa đơn", icon: "document-text", screen: "InvoiceHistory" },
+    { title: "Căn hộ của tôi", icon: "home", screen: "MyApartment" },
   ];
 
   const adminMenu = [
-    { title: "Quản lý cư dân", icon: "people", screen: "SubMenu" },
+    { title: "Quản lý lưu trú", icon: "people", screen: "SubMenu" },
     { title: "Quản lý tài khoản", icon: "person-add", screen: "Accounts" },
     { title: "Quản lý hóa đơn", icon: "file-tray", screen: "Payments" },
     { title: "Quản lý tủ đồ", icon: "cube", screen: "Lockers" },
+    { title: "Quản lý thẻ xe", icon: "car", screen: "ParkingCards" },
+    { title: "Quản lý căn hộ", icon: "home", screen: "Apartments" },
     { title: "Phản ánh", icon: "alert-circle", screen: "Complaints" },
     { title: "Khảo sát cư dân", icon: "stats-chart", screen: "Surveys" },
   ];
+
+  const loadApartments = async () => {
+    try {
+      const token = await AsyncStorage.getItem("token");
+
+      if (user.username == "admin") {
+        const res = await authApis(token).get(endpoints.apartments);
+        setApartments(res.data);
+      }
+    } catch (err) {
+      console.error(err);
+      Alert.alert("Lỗi", "Không thể tải danh sách phòng!");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadApartments();
+  }, []);
+  
 
   const menu = user.resident == null ? adminMenu : residentMenu;
 
@@ -36,20 +62,6 @@ const Home = ({ navigation }) => {
     }
   };
 
-  useEffect(() => {
-  navigation.setOptions({
-    title: "Danh sách cư dân",
-    headerRight: () => (
-      <TouchableOpacity onPress={() => navigation.navigate("AddResident")}>
-        <Text style={{ marginRight: 15, color: "#007bff", fontWeight: "bold" }}>
-          Thêm
-        </Text>
-      </TouchableOpacity>
-    ),
-  });
-}, []);
-
-
   return (
     <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
       <View style={styles.topSection}>
@@ -60,11 +72,20 @@ const Home = ({ navigation }) => {
         </View>
       </View>
 
-      <View style={styles.middleSection}>
+      <TouchableOpacity
+        style={styles.middleSection}
+        onPress={() => user.username === "admin" && navigation.navigate("Statistics")}
+      >
         <Text style={[styles.infoText, styles.buildingName]}>🏢 OU Building</Text>
         <Text style={styles.infoText}>📍 Khu dân cư Nhơn Đức, Huyện Nhà Bè, Thành phố Hồ Chí Minh</Text>
-        <Text style={styles.infoText}> {user.resident == null ? '🚪 14 phòng' : `🚪 Phòng ${user.resident.apartment?.number}`}</Text>
-      </View>
+        <Text style={styles.infoText}>
+          {user.resident == null ? `🚪${apartments.count} Căn Hộ` : `🚪 Phòng ${user.resident.apartment?.number}`}
+        </Text>
+
+        {user.username === "admin" && (
+          <Text style={styles.statisticsText}>Xem thống kê</Text>
+        )}
+      </TouchableOpacity>
 
       <View style={styles.bottomSection}>
         <View style={styles.menuContainer}>
@@ -142,6 +163,12 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
     alignItems: 'center',
+  },
+  statisticsText: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   infoText: {
     fontSize: 16,

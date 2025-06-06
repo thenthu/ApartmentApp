@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, FlatList, Alert, StyleSheet, TouchableOpacity, Modal } from "react-native";
+import { useState, useEffect } from "react";
+import { View, Text, FlatList, Alert, StyleSheet, TouchableOpacity, Modal, TextInput } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { authApis, endpoints } from "../../configs/Apis";
-import { Card, Button, TextInput } from "react-native-paper";
+import { Card, Button } from "react-native-paper";
 import { useNavigation } from "@react-navigation/native";
 import { TouchableWithoutFeedback } from "react-native";
 import RNPickerSelect from "react-native-picker-select";
@@ -13,7 +13,6 @@ const Lockers = () => {
   const [residents, setResidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [addModalVisible, setAddModalVisible] = useState(false);
   const [selectedLocker, setSelectedLocker] = useState(null);
   const [lockerNumber, setLockerNumber] = useState("");
   const [selectedResident, setSelectedResident] = useState(null);
@@ -23,6 +22,7 @@ const Lockers = () => {
   const [totalPages, setTotalPages] = useState(1);
   const itemsPerPage = 5;
   const navigation = useNavigation();
+  const [searchText, setSearchText] = useState("");
 
   const loadData = async () => {
     try {
@@ -39,11 +39,19 @@ const Lockers = () => {
         return acc;
       }, {});
 
-      const enrichedLockers = lockerRes.data.map((locker) => ({
+      let enrichedLockers = lockerRes.data.map((locker) => ({
         ...locker,
         resident_name: residentMap[locker.resident]?.name,
         item_names: locker.items.map((item) => item.name_item),
       }));
+
+      if (searchText.trim()) {
+        enrichedLockers = enrichedLockers.filter((locker) => {
+          const nameMatches = locker.resident_name.toLowerCase().includes(searchText.toLowerCase());
+          const lockerNumberMatches = locker.locker_number.includes(searchText);
+          return nameMatches || lockerNumberMatches;
+        });
+      }
 
       enrichedLockers.sort((a, b) => parseInt(a.locker_number) - parseInt(b.locker_number));
 
@@ -59,7 +67,8 @@ const Lockers = () => {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [searchText]);
+
 
   const handleDelete = async (lockerId) => {
     Alert.alert(
@@ -108,24 +117,11 @@ const Lockers = () => {
         });
         Alert.alert("Thông báo", "Cập nhật tủ đồ thành công.");
         loadData();
-      } else {
-          if (!lockerNumber || !selectedResident) {
-            Alert.alert("Lỗi", "Vui lòng điền đầy đủ thông tin tủ đồ.");
-            return;
-          }
-          
-        await authApis(token).post(endpoints.lockeritems, formData, {
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        });
-        Alert.alert("Thông báo", "Thêm tủ đồ thành công.");
       }
-
-      setAddModalVisible(false);
+      setModalVisible(false);
       loadData();
     } catch (err) {
-      console.error("Lỗi khi thêm hoặc chỉnh sửa tủ đồ:", err);
+      console.error("Lỗi khi chỉnh sửa tủ đồ:", err);
       Alert.alert("Lỗi", "Không thể lưu tủ đồ.");
     }
   };
@@ -151,7 +147,7 @@ const Lockers = () => {
               setLockerNumber(item.locker_number);
               setSelectedResident(item.resident ? item.resident.id : null);
               setSelectedItem(item.item_names.length > 0 ? item.item_names[0] : "");
-              setAddModalVisible(true);
+              setModalVisible(true);
             }}
           >
             Chỉnh sửa
@@ -177,6 +173,14 @@ const Lockers = () => {
 
   return (
     <View style={styles.container}>
+     <View style={styles.searchContainer}>
+        <TextInput
+          style={styles.searchInput}
+          placeholder="Tìm kiếm tủ đồ..."
+          value={searchText}
+          onChangeText={setSearchText}
+        />
+      </View>
       <FlatList
         data={lockersToDisplay}
         keyExtractor={(item) => item.id.toString()}
@@ -203,10 +207,10 @@ const Lockers = () => {
         }
       />
 
-      <Modal visible={addModalVisible} animationType="slide" transparent={true} onRequestClose={() => setAddModalVisible(false)}>
+      <Modal visible={modalVisible} animationType="slide" transparent={true} onRequestClose={() => setModalVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>{isEditing ? "Chỉnh sửa Tủ đồ" : "Thêm Tủ đồ"}</Text>
+            <Text style={styles.modalTitle}>Chỉnh sửa Tủ đồ</Text>
 
             <TextInput
               label="Số tủ"
@@ -231,39 +235,17 @@ const Lockers = () => {
             <Button mode="contained" onPress={handleSave} style={styles.saveButton}>
               Lưu
             </Button>
-            <TouchableOpacity style={styles.closeButton} onPress={() => setAddModalVisible(false)}>
+            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
               <Text style={styles.closeButtonText}>Đóng</Text>
             </TouchableOpacity>
           </View>
         </View>
       </Modal>
-
-      <TouchableOpacity style={styles.addButton} onPress={() => {
-        setIsEditing(false);
-        setAddModalVisible(true);
-        setLockerNumber("");
-        setSelectedResident(null);
-        setSelectedItem("");
-      }}>
-        <Ionicons name="add" size={24} color="#fff" />
-        <Text style={styles.addText}>Thêm Tủ Đồ</Text>
-      </TouchableOpacity>
     </View>
   );
 };
 
 const pickerSelectStyles = StyleSheet.create({
-  inputIOS: {
-    fontSize: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 4,
-    color: 'black',
-    paddingRight: 30,
-    marginBottom: 10,
-  },
   inputAndroid: {
     fontSize: 16,
     paddingVertical: 12,
@@ -337,21 +319,6 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: "#3498db",
   },
-  addButton: {
-    backgroundColor: "#2ecc71",
-    position: "absolute",
-    bottom: 20,
-    right: 20,
-    padding: 10,
-    borderRadius: 50,
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 10,
-  },
-  addText: {
-    color: "#fff",
-    marginLeft: 5,
-  },
   paginationContainer: {
     flexDirection: "row",
     justifyContent: "center",
@@ -367,6 +334,17 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
     fontSize: 16,
     color: "#333",
+  },
+  searchContainer: {
+    margin: 16,
+    marginBottom: 8,
+  },
+  searchInput: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    padding: 10,
+    borderRadius: 8,
+    fontSize: 16,
   },
 });
 

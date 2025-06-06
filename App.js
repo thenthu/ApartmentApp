@@ -27,6 +27,18 @@ import GuestDetails from "./components/Admin/GuestDetails";
 import Chat from "./components/Home/Chat";
 import MainChat from "./components/Home/MainChat";
 import ChatPerm from "./components/Home/ChatPerm";
+import Statistics from "./components/Admin/Statistics";
+import MyComplaintHistory from "./components/Resident/MyComplaintHistory";
+import ParkingCards from "./components/Admin/ParkingCards";
+import Apartments from "./components/Admin/Apartment";
+import ComplaintHistory from "./components/Admin/ComplaintHistory";
+import AddSurvey from "./components/Admin/AddSurvey";
+import SurveyDetails from "./components/Admin/SurveyDetails";
+import MySurveys from "./components/Resident/MySurveys";
+import MyVisitors from "./components/Resident/MyVisitors";
+import MyInvoiceHistory from "./components/Resident/MyInvoiceHistory";
+import MyApartment from "./components/Resident/MyApartment";
+import DoSurvey from "./components/Resident/DoSurvey";
 
 const getTabBarStyle = (route) => {
   const routeName = getFocusedRouteNameFromRoute(route) ?? 'home';
@@ -48,6 +60,18 @@ const getTabBarStyle = (route) => {
     'ChangePasswordAndAvatar',
     'Guests',
     'GuestDetails',
+    'Statistics',
+    'MyComplaintHistory',
+    'ParkingCards',
+    'Apartments',
+    'ComplaintHistory',
+    'AddSurvey',
+    'SurveyDetails',
+    'MySurveys',
+    'MyVisitors',
+    'MyInvoiceHistory',
+    'MyApartment',
+    'DoSurvey',
   ];
 
   if (hiddenScreens.includes(routeName)) {
@@ -76,7 +100,18 @@ const StackNavigator = () => {
       <Stack.Screen name="Complaints" component={Complaints} options={{ title: "Phản ánh của cư dân" }} />
       <Stack.Screen name="Surveys" component={Surveys} options={{ title: "Khảo sát" }} />
       <Stack.Screen name="ChangePasswordAndAvatar" component={ChangePasswordAndAvatar} options={{ headerShown: false }} />
-      <Stack.Screen name="Chat" component={Chat} options={{ title: "" }} />
+      <Stack.Screen name="Statistics" component={Statistics} options={{ title: "Thống kê" }} />
+      <Stack.Screen name="MyComplaintHistory" component={MyComplaintHistory} options={{ title: "Lịch sử phản ánh" }} />
+      <Stack.Screen name="ComplaintHistory" component={ComplaintHistory} options={{ title: "Lịch sử phản ánh" }} />
+      <Stack.Screen name="ParkingCards" component={ParkingCards} options={{ title: "Thẻ xe" }} />
+      <Stack.Screen name="Apartments" component={Apartments} options={{ title: "Căn hộ" }} />
+      <Stack.Screen name="AddSurvey" component={AddSurvey} options={{ title: "Thêm khảo sát" }} />
+      <Stack.Screen name="SurveyDetails" component={SurveyDetails} options={{ title: "Thêm khảo sát" }} />
+      <Stack.Screen name="MySurveys" component={MySurveys} options={{ title: "Danh sách khảo sát" }} />
+      <Stack.Screen name="MyVisitors" component={MyVisitors} options={{ title: "Danh sách khách" }} />
+      <Stack.Screen name="MyInvoiceHistory" component={MyInvoiceHistory} options={{ title: "Lịch sử thanh toán" }} />
+      <Stack.Screen name="MyApartment" component={MyApartment} options={{ title: "Thông tin căn hộ" }} />
+      <Stack.Screen name="DoSurvey" component={DoSurvey} options={{ title: "Thông tin căn hộ" }} />
     </Stack.Navigator>
   );
 }

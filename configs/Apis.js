@@ -15,6 +15,7 @@ export const endpoints = {
     'surveys': '/surveys/',
     'visitors': '/visitors/',
     'parking_cards': '/parkingcards/',
+    'payments': '/payments/',
 };
 
 export const authApis = (token) => {

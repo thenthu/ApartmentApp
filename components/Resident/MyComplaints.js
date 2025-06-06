@@ -1,19 +1,21 @@
 import React, { useState, useContext } from "react";
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert } from "react-native";
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, } from "react-native";
 import { MyUserContext } from "../../configs/Contexts";
-import { authApis } from "../../configs/Apis";
+import { authApis, endpoints } from "../../configs/Apis";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 
 const MyComplaints = () => {
   const user = useContext(MyUserContext);
   const residentId = user.resident?.id;
+  const navigation = useNavigation();
 
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleMyComplaints = async () => {
-    if (!description.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập nội dung phản ánh.");
+    if (!title.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tiêu đề phản ánh.");
       return;
     }
 
@@ -21,14 +23,13 @@ const MyComplaints = () => {
 
     try {
       const token = await AsyncStorage.getItem("token");
-      const response = await authApis(token).post("/feedbacks/", {
-        resident_id: residentId,
-        description: description,
+      const response = await authApis(token).post(endpoints.complaints, {
+        title: title,
       });
 
       if (response.status === 201) {
         Alert.alert("Thành công", "Phản ánh đã được gửi thành công.");
-        setDescription("");
+        setTitle("");
       } else {
         Alert.alert("Lỗi", "Đã xảy ra lỗi khi gửi phản ánh. Vui lòng thử lại.");
       }
@@ -48,18 +49,22 @@ const MyComplaints = () => {
         style={styles.input}
         multiline
         numberOfLines={4}
-        placeholder="Nhập phản ánh của bạn ở đây"
-        value={description}
-        onChangeText={setDescription}
+        placeholder="Nhập nội dung phản ánh"
+        value={title}
+        onChangeText={setTitle}
       />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#007bff" style={styles.loader} />
+        <Text style={{ padding: 20 }}>Đang tải dữ liệu...</Text>
       ) : (
         <TouchableOpacity style={styles.button} onPress={handleMyComplaints}>
           <Text style={styles.buttonText}>Gửi Phản Ánh</Text>
         </TouchableOpacity>
       )}
+
+      <TouchableOpacity onPress={() => navigation.navigate("MyComplaintHistory")}>
+        <Text style={styles.historyLink}>Lịch sử phản ánh</Text>
+      </TouchableOpacity>
     </View>
   );
 };
@@ -98,6 +103,13 @@ const styles = StyleSheet.create({
   },
   loader: {
     alignSelf: "center",
+  },
+  historyLink: {
+    color: "#007bff",
+    textAlign: "right",
+    marginTop: 20,
+    textDecorationLine: "underline",
+    fontSize: 16,
   },
 });
 

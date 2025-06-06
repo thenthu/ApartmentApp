@@ -3,7 +3,6 @@ import { View, Text, FlatList, StyleSheet, ActivityIndicator } from "react-nativ
 import { MyUserContext } from "../../configs/Contexts";
 import { authApis } from "../../configs/Apis";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Picker } from "@react-native-picker/picker";
 
 const MyLockers = () => {
   const user = useContext(MyUserContext);
@@ -32,7 +31,6 @@ const MyLockers = () => {
         }, {});
 
         setItemsStatus(statusesObject);
-
       } catch (err) {
         console.error("Lỗi tải tủ đồ:", err);
       } finally {
@@ -43,39 +41,24 @@ const MyLockers = () => {
     if (residentId) fetchLocker();
   }, [residentId]);
 
-  const updateStatus = async (itemId, status) => {
-    try {
-      const token = await AsyncStorage.getItem("token");
-      await authApis(token).put(`/residents/${residentId}/lockeritem/item/${itemId}`, { status });
-
-      setItemsStatus((prevStatus) => ({
-        ...prevStatus,
-        [itemId]: status,
-      }));
-    } catch (error) {
-      console.error("Lỗi cập nhật trạng thái:", error);
-    }
-  };
-
   if (loading) {
-    return <ActivityIndicator size="large" color="#007bff" style={styles.loader} />;
+    return <Text style={{ padding: 20 }}>Đang tải dữ liệu...</Text>;
   }
 
-  const renderItem = ({ item }) => (
-    <View style={styles.item}>
-      <Text style={styles.itemText}>📦 {item.name_item}</Text>
-      <Text style={styles.statusText}>Trạng thái:</Text>
+  const renderItem = ({ item }) => {
+    const status = itemsStatus[item.id];
+    const statusLabel = status === "received" ? "Đã nhận" : "Chờ nhận";
+    const statusColor = status === "received" ? styles.receivedText : styles.waitingText;
 
-      <Picker
-        selectedValue={itemsStatus[item.id]}
-        onValueChange={(value) => updateStatus(item.id, value)}
-        style={styles.picker}
-      >
-        <Picker.Item label="Chờ nhận" value="waiting" style={styles.waitingText} />
-        <Picker.Item label="Đã nhận" value="received" style={styles.receivedText} />
-      </Picker>
-    </View>
-  );
+    return (
+      <View style={styles.item}>
+        <Text style={styles.itemText}>📦 {item.name_item}</Text>
+        <Text style={[styles.statusText, styles.statusValue, statusColor]}>
+          {statusLabel}
+        </Text>
+      </View>
+    );
+  };
 
   return (
     <View style={styles.container}>
@@ -129,17 +112,10 @@ const styles = StyleSheet.create({
     color: "#333" 
   },
 
-  statusText: { 
-    fontSize: 14, 
-    color: "#666", 
-    marginTop: 5 
-  },
-
-  picker: { 
+  statusValue: { 
+    fontSize: 15, 
     marginTop: 5, 
-    height: 54, 
-    backgroundColor: "#fff", 
-    borderRadius: 8 
+    fontWeight: "500" 
   },
 
   waitingText: { 
@@ -148,7 +124,7 @@ const styles = StyleSheet.create({
 
   receivedText: { 
     color: "green" 
-  },  // Màu xanh cho "Đã nhận"
+  },
 
   empty: { 
     color: "#999", 

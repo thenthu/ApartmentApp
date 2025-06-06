@@ -9,6 +9,7 @@ import { Picker } from "@react-native-picker/picker";
 const Accounts = () => {
   const [accounts, setAccounts] = useState([]);
   const [residents, setResidents] = useState([]);
+  const [filteredAccounts, setFilteredAccounts] = useState([]);
   const [selectedResidentId, setSelectedResidentId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
@@ -19,12 +20,24 @@ const Accounts = () => {
   const [newPassword, setNewPassword] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadAccounts = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const res = await authApis(token).get(endpoints["users"]);
+      const res = await authApis(token).get(endpoints.users, {
+        params: {
+          page: currentPage,
+          page_size: itemsPerPage
+        }
+      });
       setAccounts(res.data);
+      setFilteredAccounts(res.data);
+      const totalCount = res.data.length;
+      setTotalPages(Math.ceil(totalCount / itemsPerPage));
     } catch (err) {
       console.error("Lỗi khi tải tài khoản:", err);
     } finally {
@@ -43,10 +56,24 @@ const Accounts = () => {
     }
   };
 
+  const handleSearch = (query) => {
+    setSearchQuery(query);
+    if (query === "") {
+      setFilteredAccounts(accounts);
+    } else {
+      const filtered = accounts.filter(account =>
+        account.username.toLowerCase().includes(query.toLowerCase()) || 
+        account.first_name.toLowerCase().includes(query.toLowerCase()) || 
+        account.last_name.toLowerCase().includes(query.toLowerCase())
+      );
+      setFilteredAccounts(filtered);
+    }
+  };
+
   useEffect(() => {
     loadAccounts();
     loadResidents();
-  }, []);
+  }, [currentPage]);
 
   const handleAction = (action, account) => {
     setAction(action);
@@ -161,8 +188,27 @@ const Accounts = () => {
     );
   };
 
+  const handleNextPage = () => {
+    if (currentPage < totalPages) {
+      setCurrentPage(currentPage + 1);
+    }
+  };
+
+  const handlePreviousPage = () => {
+    if (currentPage > 1) {
+      setCurrentPage(currentPage - 1);
+    }
+  };
+
   return (
     <View style={styles.container}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Tìm kiếm tài khoản..."
+        value={searchQuery}
+        onChangeText={handleSearch}
+      />
+
       <TouchableOpacity style={styles.addButton} onPress={() => handleAction("add")}>
         <Ionicons name="add" size={28} color="#fff" />
         <Text style={styles.addButtonText}>Thêm Tài Khoản</Text>
@@ -172,10 +218,33 @@ const Accounts = () => {
         <Text>Đang tải dữ liệu...</Text>
       ) : (
         <FlatList
-          data={accounts}
+          data={filteredAccounts.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage)}
           keyExtractor={(item) => item.id?.toString() ?? item.username}
           renderItem={renderAccountItem}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={loadAccounts} />}
+          ListEmptyComponent={<Text style={styles.empty}>Không có tài khoản nào.</Text>}
+          ListFooterComponent={
+            <View style={styles.paginationContainer}>
+
+              <TouchableOpacity
+                onPress={handlePreviousPage}
+                disabled={currentPage === 1}
+                style={[styles.pageButton, { opacity: currentPage === 1 ? 0.5 : 1 }]} >
+                <Ionicons name="chevron-back-outline" size={24} color="white" />
+              </TouchableOpacity>
+
+              <Text style={styles.pageInfo}>
+                {currentPage} / {totalPages}
+              </Text>
+
+              <TouchableOpacity
+                onPress={handleNextPage}
+                disabled={currentPage === totalPages}
+                style={[styles.pageButton, { opacity: currentPage === totalPages ? 0.5 : 1 }]} >
+                <Ionicons name="chevron-forward-outline" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
+          }
         />
       )}
 
@@ -304,6 +373,22 @@ const styles = StyleSheet.create({
     top: 10,
     right: 40,
   },
+  paginationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginVertical: 16,
+  },
+  pageButton: {
+    padding: 10,
+    backgroundColor: '#4a90e2',
+    borderRadius: 5,
+    marginHorizontal: 8,
+  },
+  pageInfo: {
+    fontSize: 16,
+    color: "#333",
+  },
   modalContentWrapper: {
     backgroundColor: "#fff",
     padding: 20,
@@ -341,6 +426,16 @@ const styles = StyleSheet.create({
   cancelButton: {
     flex: 1,
     marginLeft: 10,
+  },
+  searchInput: {
+    width: "100%",
+    padding: 10,
+    backgroundColor: "#f9f9f9",
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    fontSize: 16,
+    marginBottom: 15,
   },
 });
 

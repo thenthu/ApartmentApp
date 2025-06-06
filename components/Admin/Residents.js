@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import {View, Text, TextInput, Modal, FlatList, StyleSheet, ActivityIndicator, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, } from "react-native";
+import {View, Text, TextInput, Modal, FlatList, StyleSheet, RefreshControl, TouchableOpacity, TouchableWithoutFeedback, } from "react-native";
 import { Card, Avatar, Button } from "react-native-paper";
 import { authApis, endpoints } from "../../configs/Apis";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -26,7 +26,9 @@ const Residents = () => {
   const [residentData, setResidentData] = useState({ name: "", relationship_to_head: "", room: "" });
   const [newResidentData, setNewResidentData] = useState({ name: "", relationship_to_head: "", room: "" });
   const [residentId, setResidentId] = useState(null);
+  const [apartmentsData, setApartmentsData] = useState([]);
   const [apartments, setApartments] = useState([]);
+  const [searchText, setSearchText] = useState("");
 
   const sortRooms = (rooms) => {
     return rooms.sort((a, b) => {
@@ -44,11 +46,13 @@ const Residents = () => {
   };
 
   const groupResidentsByRoom = (residents) => {
+    const filteredResidents = filterResidents(residents);
     const grouped = {};
-    for (let r of residents) {
-      const room = r.apartment?.number || "Không xác định";
-      if (!grouped[room]) grouped[room] = [];
-      grouped[room].push(r);
+    for (let r of filteredResidents) {
+      const roomId = r.apartment || "Không xác định";
+      const roomNumber = apartments.find(apartment => apartment.id === roomId)?.number || "Không xác định";
+      if (!grouped[roomNumber]) grouped[roomNumber] = [];
+      grouped[roomNumber].push(r);
     }
     return grouped;
   };
@@ -75,11 +79,35 @@ const Residents = () => {
     }
   };
 
+  const filterResidents = (residents) => {
+    if (!searchText.trim()) return residents;
+    return residents.filter((resident) => {
+      return (
+        resident.name.toLowerCase().includes(searchText.toLowerCase()) || 
+        (resident.apartment?.number && resident.apartment.number.toLowerCase().includes(searchText.toLowerCase()))
+      );
+    });
+  };
+
   const loadApartments = async () => {
     try {
       const token = await AsyncStorage.getItem("token");
-      const res = await authApis(token).get(endpoints.apartments);
-      setApartments(res.data.results);
+      let allApartments = [];
+      let page = 1;
+      let hasMore = true;
+
+      while (hasMore) {
+        const res = await authApis(token).get(endpoints.apartments, {
+          params: { page },
+        });
+
+        allApartments = [...allApartments, ...res.data.results];
+
+        hasMore = res.data.next !== null;
+        page += 1;
+      }
+
+      setApartments(allApartments);
     } catch (err) {
       console.error("Lỗi khi tải danh sách phòng:", err);
     }
@@ -94,6 +122,12 @@ const Residents = () => {
     setRefreshing(true);
     loadResidents();
   };
+
+  useEffect(() => {
+    loadResidents();
+    const filteredResidents = filterResidents(Object.values(groupedResidents).flat());
+    setGroupedResidents(groupResidentsByRoom(filteredResidents));
+  }, [searchText]);
 
   const handleEdit = (resident) => {
     setResidentData({
@@ -159,7 +193,7 @@ const Residents = () => {
           title={resident.name}
           subtitle={`👤 ${quanHeVietHoa[resident.relationship_to_head] ?? "Không rõ"}`}
           left={(props) => <Avatar.Text {...props} label={resident.name.charAt(0).toUpperCase()} />}
-          right={() => resident.user ? <Avatar.Image source={{ uri: resident.user.avatar }} size={40} /> : null}
+          right={() => resident.user && resident.user.avatar ? <Avatar.Image source={{ uri: resident.user.avatar }} size={40} /> : null}
         />
         {resident.user && (
           <View style={styles.userInfoContainer}>
@@ -175,10 +209,10 @@ const Residents = () => {
     </TouchableWithoutFeedback>
   );
 
-  const renderRoomItem = ({ item: room }) => (
+  const renderRoomItem = ({ item: roomNumber }) => (
     <View style={styles.roomContainer}>
-      <Text style={styles.roomTitle}>Phòng {room}</Text>
-      {groupedResidents[room].map(renderResident)}
+      <Text style={styles.roomTitle}>Phòng {roomNumber}</Text>
+      {groupedResidents[roomNumber].map(renderResident)}
     </View>
   );
 
@@ -194,8 +228,14 @@ const Residents = () => {
 
   return (
     <View style={styles.container}>
+      <TextInput
+        style={styles.searchInput}
+        placeholder="Tìm kiếm cư dân..."
+        value={searchText}
+        onChangeText={setSearchText}
+      />
       {loading ? (
-        <ActivityIndicator size="large" color="#4a90e2" />
+        <Text style={{ padding: 5 }}>Đang tải dữ liệu...</Text>
       ) : (
         <FlatList
           data={getPagedRooms()}
@@ -281,11 +321,9 @@ const Residents = () => {
               placeholder={{ label: 'Chọn phòng...', value: null }}
             />
 
-            <View style={styles.modalButtons}>
-              <Button style={styles.saveButton} onPress={handleSaveResident}>
-                Lưu
-              </Button>
-            </View>
+            <TouchableOpacity style={styles.modalButtons} onPress={handleSaveResident}>
+              <Text style={styles.saveButton}>Lưu</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -294,17 +332,6 @@ const Residents = () => {
 };
 
 const pickerSelectStyles = {
-  inputIOS: {
-    fontSize: 16,
-    paddingVertical: 10,
-    paddingHorizontal: 8,
-    borderWidth: 1,
-    borderColor: 'gray',
-    borderRadius: 5,
-    color: 'black',
-    paddingRight: 30,
-    marginBottom: 10,
-  },
   inputAndroid: {
     fontSize: 16,
     paddingHorizontal: 8,
@@ -324,63 +351,52 @@ const styles = StyleSheet.create({
     padding: 16,
     backgroundColor: "#fff",
   },
-
   roomContainer: {
     marginBottom: 24,
   },
-
   roomTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 8,
     color: "#333",
   },
-
   card: {
     marginBottom: 10,
     borderRadius: 10,
     elevation: 3,
   },
-
   userInfoContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingBottom: 8,
   },
-
   username: {
     fontSize: 14,
     color: "#333",
     fontWeight: "bold",
   },
-
   userFullName: {
     fontSize: 12,
     color: "#777",
   },
-
   buttonGroup: {
     flexDirection: "row",
     justifyContent: "flex-end",
   },
-
   editButton: {
     backgroundColor: "#3498db",
     marginRight: 10,
   },
-
   deleteButton: {
     backgroundColor: "#e74c3c",
   },
-
   modalContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "rgba(0,0,0,0.5)",
   },
-
   modalContent: {
     width: 300,
     padding: 20,
@@ -389,13 +405,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     position: "relative",
   },
-
   modalTitle: {
     fontSize: 18,
     fontWeight: "bold",
     marginBottom: 20,
   },
-
   input: {
     width: "100%",
     height: 40,
@@ -405,27 +419,25 @@ const styles = StyleSheet.create({
     marginBottom: 10,
     paddingHorizontal: 8,
   },
-
   modalButtons: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    width: "100%",
     marginTop: 20,
+    backgroundColor: "#2ecc71",
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: "center",
+    width: 100,
   },
-
-  saveButton: {
-    flex: 1,
-    marginTop: 10,
-    backgroundColor: "#27ae60",
+  saveButton: { 
+    color: "#fff", 
+    fontSize: 16, 
+    fontWeight: "bold" 
   },
-
   closeButton: {
     position: "absolute",
     top: 10,
     right: 10,
     padding: 5,
   },
-
   addButton: {
     backgroundColor: "#2ecc71",
     position: "absolute",
@@ -437,29 +449,33 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 10,
   },
-
   addText: {
     color: "#fff",
     marginLeft: 5,
   },
-
   paginationContainer: {
     flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
     marginTop: 20,
   },
-
   pageButton: {
     backgroundColor: "#4a90e2",
     padding: 8,
     borderRadius: 5,
   },
-
   pageInfo: {
     marginHorizontal: 12,
     fontSize: 16,
     color: "#333",
+  },
+  searchInput: {
+    height: 40,
+    borderColor: "gray",
+    borderWidth: 1,
+    borderRadius: 5,
+    marginBottom: 15,
+    paddingLeft: 10,
   },
 });
 
